@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, Users, DollarSign, Clock, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db } from '../lib/db';
 import { formatCurrency, getCurrentMonth, getMonthName, checkPaymentStatus } from '../utils/calculations';
+import type { User } from '@supabase/supabase-js';
 
 function navMes(mes: string, d: number) {
   const [y, m] = mes.split('-').map(Number);
@@ -9,45 +10,50 @@ function navMes(mes: string, d: number) {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export function Dashboard() {
+export function Dashboard({ user }: { user: User | null }) {
   const [mes, setMes] = useState(getCurrentMonth());
   const [metrics, setMetrics] = useState({ totalAlunos:0, valorPrevisto:0, valorRecebido:0, valorPendente:0, valorAtrasado:0, totalGastos:0, lucroLiquido:0 });
   const [pendentes, setPendentes] = useState<{ nome:string; tel:string; valor:number; status:string }[]>([]);
   const [catChart, setCatChart] = useState<{ cat:string; total:number }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { load(); }, [mes]);
+  useEffect(() => { if (user) load(); }, [mes, user]);
 
   const load = async () => {
     setLoading(true);
-    const [alunos, pagamentos, gastos] = await Promise.all([
-      db.alunos.getAll(),
-      db.pagamentos.getByMonth(mes),
-      db.gastos.getByMonth(...(([y,m]) => [parseInt(y), parseInt(m)-1])(mes.split('-'))),
-    ]);
+    try {
+      const [alunos, pagamentos, gastos] = await Promise.all([
+        db.alunos.getAll(),
+        db.pagamentos.getByMonth(mes),
+        db.gastos.getByMonth(...(([y,m]) => [parseInt(y), parseInt(m)-1])(mes.split('-'))),
+      ]);
 
-    const alunoMap = new Map(alunos.map(a => [a.id, a]));
-    const pagsComStatus = pagamentos
-      .filter(p => alunoMap.has(p.alunoId))
-      .map(p => ({ ...p, status: checkPaymentStatus(p, alunoMap.get(p.alunoId)!.diaVencimento) }));
+      const alunoMap = new Map(alunos.map(a => [a.id, a]));
+      const pagsComStatus = pagamentos
+        .filter(p => alunoMap.has(p.alunoId))
+        .map(p => ({ ...p, status: checkPaymentStatus(p, alunoMap.get(p.alunoId)!.diaVencimento) }));
 
-    const valorPrevisto = alunos.reduce((s,a) => s+a.valorMensalidade, 0);
-    const valorRecebido = pagsComStatus.filter(p=>p.status==='pago').reduce((s,p)=>s+p.valor,0);
-    const valorPendente = pagsComStatus.filter(p=>p.status==='pendente').reduce((s,p)=>s+p.valor,0);
-    const valorAtrasado = pagsComStatus.filter(p=>p.status==='atrasado').reduce((s,p)=>s+p.valor,0);
-    const totalGastos = gastos.reduce((s,g)=>s+g.valor,0);
+      const valorPrevisto = alunos.reduce((s,a) => s+a.valorMensalidade, 0);
+      const valorRecebido = pagsComStatus.filter(p=>p.status==='pago').reduce((s,p)=>s+p.valor,0);
+      const valorPendente = pagsComStatus.filter(p=>p.status==='pendente').reduce((s,p)=>s+p.valor,0);
+      const valorAtrasado = pagsComStatus.filter(p=>p.status==='atrasado').reduce((s,p)=>s+p.valor,0);
+      const totalGastos = gastos.reduce((s,g)=>s+g.valor,0);
 
-    setMetrics({ totalAlunos: alunos.length, valorPrevisto, valorRecebido, valorPendente, valorAtrasado, totalGastos, lucroLiquido: valorRecebido - totalGastos });
+      setMetrics({ totalAlunos: alunos.length, valorPrevisto, valorRecebido, valorPendente, valorAtrasado, totalGastos, lucroLiquido: valorRecebido - totalGastos });
 
-    setPendentes(pagsComStatus.filter(p=>p.status!=='pago').map(p => {
-      const al = alunoMap.get(p.alunoId)!;
-      return { nome: al.nomeCrianca, tel: al.telefone, valor: p.valor, status: p.status };
-    }));
+      setPendentes(pagsComStatus.filter(p=>p.status!=='pago').map(p => {
+        const al = alunoMap.get(p.alunoId)!;
+        return { nome: al.nomeCrianca, tel: al.telefone, valor: p.valor, status: p.status };
+      }));
 
-    const catMap: Record<string,number> = {};
-    gastos.forEach(g => { catMap[g.categoria] = (catMap[g.categoria]||0) + g.valor; });
-    setCatChart(Object.entries(catMap).map(([cat,total]) => ({ cat, total })).sort((a,b)=>b.total-a.total));
-    setLoading(false);
+      const catMap: Record<string,number> = {};
+      gastos.forEach(g => { catMap[g.categoria] = (catMap[g.categoria]||0) + g.valor; });
+      setCatChart(Object.entries(catMap).map(([cat,total]) => ({ cat, total })).sort((a,b)=>b.total-a.total));
+    } catch (e) {
+      console.error('Dashboard load error:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const pct = metrics.valorPrevisto > 0 ? Math.round(metrics.valorRecebido / metrics.valorPrevisto * 100) : 0;

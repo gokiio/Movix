@@ -4,7 +4,10 @@ import type { Aluno, Pagamento, Gasto } from '../types';
 export const db = {
   alunos: {
     getAll: async (): Promise<Aluno[]> => {
-      const { data, error } = await supabase.from('alunos').select('*').order('rota_pos');
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return [];
+      const { data, error } = await supabase.from('alunos').select('*').eq('user_id', user.id).order('rota_pos');
       if (error) { console.error(error); return []; }
       return (data || []).map(r => ({
         id: r.id,
@@ -70,7 +73,10 @@ export const db = {
 
   pagamentos: {
     getAll: async (): Promise<Pagamento[]> => {
-      const { data, error } = await supabase.from('pagamentos').select('*').order('criado_em');
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return [];
+      const { data, error } = await supabase.from('pagamentos').select('*').eq('user_id', user.id).order('criado_em');
       if (error) { console.error(error); return []; }
       return (data || []).map(r => ({
         id: r.id, alunoId: r.aluno_id, mesReferencia: r.mes_referencia,
@@ -82,7 +88,10 @@ export const db = {
       }));
     },
     getByMonth: async (mes: string): Promise<Pagamento[]> => {
-      const { data, error } = await supabase.from('pagamentos').select('*').eq('mes_referencia', mes);
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return [];
+      const { data, error } = await supabase.from('pagamentos').select('*').eq('user_id', user.id).eq('mes_referencia', mes);
       if (error) { console.error(error); return []; }
       return (data || []).map(r => ({
         id: r.id, alunoId: r.aluno_id, mesReferencia: r.mes_referencia,
@@ -118,7 +127,10 @@ export const db = {
 
   gastos: {
     getAll: async (): Promise<Gasto[]> => {
-      const { data, error } = await supabase.from('gastos').select('*').order('data', { ascending: false });
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return [];
+      const { data, error } = await supabase.from('gastos').select('*').eq('user_id', user.id).order('data', { ascending: false });
       if (error) { console.error(error); return []; }
       return (data || []).map(r => ({ id: r.id, data: r.data, categoria: r.categoria, valor: Number(r.valor), descricao: r.descricao || '', criadoEm: r.criado_em }));
     },
@@ -126,7 +138,10 @@ export const db = {
       const start = `${ano}-${String(mes + 1).padStart(2, '0')}-01`;
       const lastDay = new Date(ano, mes + 1, 0).getDate();
       const end = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      const { data, error } = await supabase.from('gastos').select('*').gte('data', start).lte('data', end).order('data', { ascending: false });
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return [];
+      const { data, error } = await supabase.from('gastos').select('*').eq('user_id', user.id).gte('data', start).lte('data', end).order('data', { ascending: false });
       if (error) { console.error(error); return []; }
       return (data || []).map(r => ({ id: r.id, data: r.data, categoria: r.categoria, valor: Number(r.valor), descricao: r.descricao || '', criadoEm: r.criado_em }));
     },
