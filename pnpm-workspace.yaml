@@ -1,5 +1,9 @@
 packages:
   - '.'
+
+overrides:
+  vite: "6.3.5"
+
 allowBuilds:
-  '@tailwindcss/oxide': false
-  esbuild: false
+  '@tailwindcss/oxide': true
+  esbuild: true
